@@ -133,5 +133,3 @@ Commercial support is available at
 </html>
 feelins@FeeLinS-PC:~$ 
 ```
-
-./knock.sh 192.168.255.1 8881 7777 9991
