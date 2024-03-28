@@ -1,0 +1,100 @@
+---
+- hosts: all
+  become: true
+  tasks:
+  - name: install soft
+    apt:
+      name: 
+      - traceroute
+      - tcpdump
+      - net-tools  
+      - nmap  
+      state: present
+      update_cache: true
+    
+  - name: install nginx
+    apt:
+      name:
+      - nginx  
+      state: present
+      update_cache: true
+    when: (ansible_hostname == "centralServer") 
+
+  - name: start nginx
+    service: 
+      name: nginx
+      state: started
+      enabled: yes
+    when: (ansible_hostname == "centralServer") 
+
+  - name: Change root password
+    user: name=root update_password=always password=$y$j9T$azyG4z.XBooOleR0LgzVU0$t8HHgkjMlW6ryV9UwUAnFm7s8FXQbUllOqXPcYWxjM2
+    when: (ansible_hostname == "inetRouter")
+      
+#  - name: enable iptables
+#    systemd:
+#      name: iptables
+#      state: started
+#      enabled: yes
+
+  - name: Set up iptables rules inerRouter
+    template: 
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+      owner: root
+      group: root
+      mode: "{{ item.mode }}"
+    with_items:
+      - { src: "files/iptables_inetRouter.ipv4", dest: "/etc/iptables_inetRouter.ipv4", mode: "0644" }
+      - { src: "files/iptables_restore", dest: "/etc/network/if-pre-up.d/iptables", mode: "0755" }
+    when: (ansible_hostname == "inetRouter")
+
+  - name: Set up iptables rules inetRouter2
+    template: 
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+      owner: root
+      group: root
+      mode: "{{ item.mode }}"
+    with_items:
+      - { src: "files/iptables_inetRouter2.ipv4", dest: "/etc/iptables_inetRouter2.ipv4", mode: "0644" }
+      - { src: "files/iptables_restore2", dest: "/etc/network/if-pre-up.d/iptables", mode: "0755" }
+    when: (ansible_hostname == "inetRouter2")
+
+  - name: set up forward packages across routers
+    sysctl:
+      name: net.ipv4.conf.all.forwarding
+      value: '1'
+      state: present
+    when: "'routers' in group_names"
+
+  - name: disable default route
+    template: 
+      src: "files/00-installer-config.yaml"
+      dest: "/etc/netplan/00-installer-config.yaml"
+      owner: root
+      group: root
+      mode: 0644
+    when: (ansible_hostname != "inetRouter") 
+
+  - name: add default gateway
+    template: 
+      src: "50-vagrant_{{ansible_hostname}}.yaml"
+      dest: "/etc/netplan/50-vagrant.yaml"
+      owner: root
+      group: root
+      mode: 0644
+
+
+  - name: copy file and set permissions
+    copy:
+      src: files/knock.sh
+      dest: /root/knock.sh
+      owner: root
+      group: root
+      mode: a+x
+    when: (ansible_hostname == "centralRouter")  
+
+  - name: restart all hosts
+    reboot:
+      reboot_timeout: 600
